@@ -2,6 +2,10 @@
 
 A cute, pixel-art-inspired Pomodoro timer designed to make focused work sessions a little more enjoyable.
 
+## Live Demo
+
+[**Try Pixodoro**](https://pixodoro.vercel.app)
+
 ## About
 
 Pixodoro is a personal Pomodoro timer project that I created to use in my own daily workflow. My goal was to build a simple, cozy, and visually appealing productivity tool that makes staying focused more fun.
