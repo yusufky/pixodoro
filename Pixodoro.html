@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pixodoro</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐱</text></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<style>
+/* ---------- 1. COLOURS (change these to re-theme the app) ---------- */
+:root {
+  --bg1: #ffe8d2; --bg2: #f8cfc0; --glow: rgba(255, 214, 140, .55);
+  --panel: #fff6ea; --ink: #5a3e36; --muted: #9b7b6e; --line: #ecd0b8; --shade: #e3bfa4;
+  --focus: #e8795a; --short: #78ae86; --long: #8f8bd1; --star: #f2a93b;
+  --accent: var(--focus);
+  --pixel: "Silkscreen", "Courier New", monospace;
+  --clock: "VT323", "Courier New", monospace;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg1: #2d2030; --bg2: #432a37; --glow: rgba(255, 170, 90, .22); --panel: #3d2d3c; --ink: #fbe9da; --muted: #c4a8a0; --line: #5e4458; --shade: #2a1d2b; --focus: #ff9373; --short: #93cf9f; --long: #a9a5ee; }
+}
+:root[data-theme="dark"] { --bg1: #2d2030; --bg2: #432a37; --glow: rgba(255, 170, 90, .22); --panel: #3d2d3c; --ink: #fbe9da; --muted: #c4a8a0; --line: #5e4458; --shade: #2a1d2b; --focus: #ff9373; --short: #93cf9f; --long: #a9a5ee; }
+body[data-mode="short"] { --accent: var(--short); }
+body[data-mode="long"]  { --accent: var(--long); }
+
+/* ---------- 2. COZY BACKGROUND ---------- */
+* { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; min-height: 100vh; color: var(--ink); font-family: var(--pixel);
+  display: flex; justify-content: center; padding: 24px 16px 40px;
+  background: radial-gradient(ellipse 60% 45% at 50% 0%, var(--glow), transparent 70%), linear-gradient(170deg, var(--bg1), var(--bg2));
+  background-attachment: fixed;
+}
+.bg { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.bg .star { position: absolute; left: var(--x, 0); width: var(--s, 3px); height: var(--s, 3px); color: var(--star); background: currentColor;
+  box-shadow: var(--s, 3px) 0 currentColor, calc(var(--s, 3px) * -1) 0 currentColor, 0 var(--s, 3px) currentColor, 0 calc(var(--s, 3px) * -1) currentColor;
+  filter: drop-shadow(0 0 4px currentColor); animation: drift 90s linear infinite, twinkle 3s ease-in-out infinite; }
+@keyframes drift { from { transform: translateX(calc(-1 * var(--x, 0px) - 5vw)); } to { transform: translateX(calc(110vw - var(--x, 0px))); } }
+@keyframes twinkle { 0%, 100% { opacity: .9; } 50% { opacity: .15; } }
+.no-motion .bg .star { animation-play-state: paused; }
+.head-btns { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+/* ---------- 3. LAYOUT ---------- */
+.app { position: relative; z-index: 1; width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 0 6px; }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; letter-spacing: 3px; }
+.logo svg { width: 32px; height: 28px; shape-rendering: crispEdges; }
+.card { background: var(--panel); border: 3px solid var(--line); border-radius: 30px; padding: 22px; box-shadow: 0 8px 0 var(--shade), 0 18px 30px rgba(120, 60, 40, .12); }
+.label { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+
+/* ---------- 4. TABS ---------- */
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 5px; margin-bottom: 20px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.tab { font: 700 11px var(--pixel); letter-spacing: 1px; padding: 12px 4px; cursor: pointer; background: transparent; color: var(--muted); border: 0; border-radius: 999px; transition: all .25s; }
+.tab:hover { color: var(--ink); }
+.tab.active { color: #fff; background: var(--accent); box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 60%, #000); }
+
+/* ---------- 5. TIMER ---------- */
+.stage { text-align: center; }
+.pet { width: 128px; height: 80px; margin: 0 auto 12px; shape-rendering: crispEdges; animation: bob 2.4s steps(2) infinite; overflow: visible; }
+.running .pet { animation-duration: .9s; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+.eyes-closed { display: none; } body:not([data-mode="focus"]) .eyes-open { display: none; } body:not([data-mode="focus"]) .eyes-closed { display: inline; }
+.running .eyes-open { animation: blinkeyes 4s steps(1) infinite; transform-origin: 50% 5.5px; }
+@keyframes blinkeyes { 92% { opacity: 0; } }
+.time { font: 400 clamp(110px, 26vw, 150px)/0.95 var(--clock); letter-spacing: 4px; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.running .colon { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.status { min-height: 16px; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+.bar { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; margin: 18px 0 22px; }
+.bar i { height: 14px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, transparent); transition: background .3s; }
+.bar i.on { background: var(--accent); }
+
+/* ---------- 6. BUTTONS ---------- */
+.controls { display: flex; gap: 12px; justify-content: center; }
+.btn { font: 700 14px var(--pixel); letter-spacing: 1px; padding: 15px 26px; cursor: pointer; color: var(--ink); background: var(--panel); border: 3px solid var(--line); border-radius: 999px; box-shadow: 0 5px 0 var(--shade); transition: transform .1s, box-shadow .1s; }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 var(--shade); }
+.btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--shade); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 160px; box-shadow: 0 5px 0 color-mix(in srgb, var(--accent) 60%, #000); transition: transform .1s, box-shadow .1s, background .3s; }
+.btn.primary:hover { box-shadow: 0 7px 0 color-mix(in srgb, var(--accent) 60%, #000); }
+.btn.primary:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, #000); }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible { outline: 3px dashed var(--accent); outline-offset: 3px; }
+
+/* ---------- 7. STATS ---------- */
+
+.yarn-head { display: flex; justify-content: space-between; margin-bottom: 16px; }
+.yarns { display: flex; justify-content: space-around; align-items: flex-end; }
+.yarn { width: 56px; height: 52px; color: color-mix(in srgb, var(--ink) 22%, var(--panel)); transition: color .7s; }
+.yarn.on { color: var(--c); }
+.yarn svg { width: 100%; height: 100%; overflow: visible; shape-rendering: crispEdges; }
+.yarn:nth-child(1) { --c: #f29aa0; } .yarn:nth-child(2) { --c: #f6c667; } .yarn:nth-child(3) { --c: #8fc79c; } .yarn:nth-child(4) { --c: #a9a0e8; }
+.yarn.pop { animation: yarnpop .8s ease; }
+@keyframes yarnpop { 30% { transform: translateY(-10px) rotate(-12deg) scale(1.15); } 60% { transform: translateY(0) rotate(8deg); } }
+/* ---------- SPOTIFY (optional) ---------- */
+.stage { position: relative; z-index: 3; }  /* keeps the timer card above the side panels */
+.spotify { position: absolute; z-index: 1; left: calc(100% + 28px); top: 0; width: 340px; padding: 14px 16px 16px; transform: translateX(120px); opacity: 0; visibility: hidden; transition: transform .55s cubic-bezier(.2, .9, .3, 1.05), opacity .35s, visibility 0s .55s; }
+.spotify.open { transform: none; opacity: 1; visibility: visible; transition-delay: 0s; }
+.sp-head { display: flex; justify-content: space-between; align-items: center; }
+.sp-btns { display: flex; gap: 14px; }
+.sp-btns .small { text-decoration: none; font-size: 16px; }
+.sp-body { overflow: hidden; max-height: 560px; padding: 6px; margin: 6px -6px 0; transition: max-height .4s ease, margin .4s ease, padding .4s ease; }
+.spotify.min .sp-body { max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; }
+.sp-add input { font-size: 18px; }
+.sp-add .btn { font-size: 13px; padding: 4px 16px; }
+.todo-add input:focus-visible { outline: none; border-color: var(--accent); }  /* solid accent border instead of the dashed outline */
+.sp-note { margin: 8px 0 0; font-size: 10px; line-height: 1.6; color: var(--focus); letter-spacing: .5px; }
+.sp-note:empty { display: none; }
+#spFrame { display: block; width: 100%; height: 352px; margin-top: 12px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.sp-hint { margin: 10px 0 0; font-size: 10px; line-height: 1.6; color: var(--muted); letter-spacing: .5px; }
+/* Narrow screens: no room at the side, so it unfolds under the timer card */
+@media (max-width: 1299px) {
+  .spotify { position: static; width: auto; max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; border-width: 0; box-shadow: none; transform: none; overflow: hidden; transition: max-height .55s ease, margin .55s ease, padding .55s ease, opacity .4s, visibility 0s .55s; }
+  .spotify.open { max-height: 760px; margin-top: 20px; padding-top: 14px; padding-bottom: 16px; border-width: 3px; box-shadow: 0 8px 0 var(--shade), 0 18px 30px rgba(120, 60, 40, .12); }
+  #spFrame { height: 152px; }
+}
+
+/* ---------- 8. SETTINGS ---------- */
+details summary { cursor: pointer; font-weight: 700; font-size: 13px; letter-spacing: 2px; list-style: none; display: flex; justify-content: space-between; }
+details summary::after { content: "+"; } details[open] summary::after { content: "−"; }
+.fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+input[type=number] { font: 400 28px var(--clock); width: 100%; padding: 4px 14px; color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); border: 3px solid var(--line); border-radius: 16px; }
+.toggle { display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: 1px; cursor: pointer; grid-column: span 2; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+.small { background: none; border: none; font: 11px var(--pixel); color: var(--muted); cursor: pointer; text-decoration: underline; padding: 0; }
+
+/* ---------- 9. CAT GLASSES ---------- */
+.glasses, .paw { opacity: 0; }
+.wearing .glasses { opacity: 1; }
+.putting .glasses { animation: glassIn 1.4s steps(4) forwards; }
+.putting .paw { animation: pawUp 1.4s steps(4) forwards; }
+@keyframes glassIn { 0% { opacity: 0; transform: translate(1px, 5px); } 15% { opacity: 1; transform: translate(1px, 5px); } 50%, 100% { opacity: 1; transform: translate(0, 0); } }
+@keyframes pawUp { 0% { opacity: 0; transform: translateY(3px); } 15% { opacity: 1; transform: translateY(3px); } 50%, 65% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(3px); } 100% { opacity: 0; transform: translateY(3px); } }
+
+/* ---------- 10. TO-DO LIST ---------- */
+.todo-btn { display: flex; width: 100%; align-items: center; gap: 10px; background: none; border: 0; padding: 0; color: var(--ink); font: 700 13px var(--pixel); letter-spacing: 2px; cursor: pointer; }
+.todo-btn .count { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted); }
+.todo-btn::after { content: "›"; font-size: 20px; transition: transform .4s; }
+.todo-btn[aria-expanded="true"]::after { transform: rotate(180deg); }
+.timer-wrap { position: relative; }
+/* Wide screens: the panel opens on the left side of the timer card */
+.todo-panel { position: absolute; z-index: 2; right: calc(100% + 28px); top: 0; width: 330px; max-height: 80vh; overflow-y: auto; transform: translateX(-120px); opacity: 0; visibility: hidden; transition: transform .55s cubic-bezier(.2, .9, .3, 1.12), opacity .35s, visibility 0s .55s; }
+.todo-panel.open { transform: none; opacity: 1; visibility: visible; transition-delay: 0s; }
+/* Narrow screens: there is no room on the side, so it unfolds right under the timer card */
+@media (max-width: 1239px) {
+  .todo-panel { position: static; width: auto; max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; border-width: 0; box-shadow: none; transform: none; overflow: hidden; transition: max-height .55s ease, margin .55s ease, padding .55s ease, opacity .4s, visibility 0s .55s; }
+  .todo-panel.open { max-height: 700px; margin-top: 20px; padding-top: 22px; padding-bottom: 22px; border-width: 3px; box-shadow: 0 8px 0 var(--shade), 0 18px 30px rgba(120, 60, 40, .12); overflow-y: auto; }
+}
+.todo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.todo-head h2 { margin: 0; font: 700 14px/1.6 var(--pixel); letter-spacing: 1px; }
+.todo-add { display: flex; gap: 8px; }
+.todo-add input { flex: 1; min-width: 0; font: 400 24px var(--clock); padding: 4px 14px; color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); border: 3px solid var(--line); border-radius: 16px; }
+.todo-add .btn { padding: 4px 18px; font-size: 20px; }
+.todo-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.todo-list li { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; max-height: 120px; overflow: hidden; border-radius: 18px; background: color-mix(in srgb, var(--ink) 6%, transparent); animation: popin .4s ease; transition: max-height .45s ease, margin .45s ease, padding .45s ease, opacity .4s ease, transform .45s ease; }
+@keyframes popin { from { opacity: 0; transform: translateX(-18px) scale(.95); } }
+.todo-text { flex: 1; min-width: 0; font: 400 24px/1.1 var(--clock); overflow-wrap: anywhere; transition: opacity .3s; }
+.check { flex: none; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; cursor: pointer; background: transparent; border: 3px solid var(--accent); border-radius: 50%; transition: background .2s, transform .15s; }
+.check:hover { transform: scale(1.1); }
+.check svg { width: 16px; height: 12px; color: var(--accent); opacity: 0; transform: scale(.4); shape-rendering: crispEdges; transition: opacity .15s, transform .3s cubic-bezier(.3, 1.7, .5, 1); }
+.check:hover svg { opacity: .4; transform: scale(1); }
+.todo-list li.done .check { background: var(--accent); }
+.todo-list li.done .check svg { color: #fff; opacity: 1; transform: scale(1); }
+.todo-list li.done .todo-text { text-decoration: line-through; opacity: .5; }
+.todo-list li.removing { max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; opacity: 0; transform: translateX(-30px); }
+.todo-empty { text-align: center; font-size: 11px; color: var(--muted); letter-spacing: 1px; margin: 18px 0 4px; }
+
+@media (max-width: 420px) {
+  .card { padding: 16px; border-radius: 24px; }
+  .btn { padding: 13px 16px; font-size: 12px; } .btn.primary { min-width: 110px; }
+  .tab { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body data-mode="focus">
+<div class="bg" id="bg" aria-hidden="true"></div>
+
+<main class="app" id="app">
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 14 11" aria-hidden="true">
+        <rect x="2" y="0" width="1" height="1" fill="#f0a35e"/><rect x="11" y="0" width="1" height="1" fill="#f0a35e"/><rect x="2" y="1" width="3" height="1" fill="#f0a35e"/><rect x="9" y="1" width="3" height="1" fill="#f0a35e"/><rect x="1" y="2" width="12" height="6" fill="#f0a35e"/><rect x="2" y="8" width="10" height="1" fill="#f0a35e"/>
+        <rect x="4" y="5" width="1" height="2" fill="#4a3030"/><rect x="9" y="5" width="1" height="2" fill="#4a3030"/><rect x="6" y="6" width="2" height="1" fill="#ff9aa8"/>
+      </svg>
+      PIXODORO
+    </div>
+    <div class="head-btns">
+      <button class="small" id="themeBtn" type="button">CHANGE THEME</button>
+      <button class="small" id="motionBtn" type="button">STOP MOTION</button>
+    </div>
+  </header>
+
+  <div class="timer-wrap">
+  <section class="card stage" aria-label="Timer">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-mode="focus" role="tab">FOCUS</button>
+      <button class="tab" data-mode="short" role="tab">SHORT BREAK</button>
+      <button class="tab" data-mode="long" role="tab">LONG BREAK</button>
+    </div>
+    <!-- pixel cat mascot: every <rect> is one pixel. Awake while focusing, sleeping on breaks. -->
+    <!-- The grid is 16 pixels wide and the middle is at x=8, so every left pixel has a matching right pixel. -->
+    <svg class="pet" id="cat" viewBox="0 0 16 10" aria-hidden="true">
+      <!-- head and ears -->
+      <rect x="2" y="0" width="1" height="1" fill="#f0a35e"/><rect x="13" y="0" width="1" height="1" fill="#f0a35e"/>
+      <rect x="2" y="1" width="3" height="1" fill="#f0a35e"/><rect x="11" y="1" width="3" height="1" fill="#f0a35e"/>
+      <rect x="1" y="2" width="14" height="7" fill="#f0a35e"/><rect x="2" y="9" width="12" height="1" fill="#f0a35e"/>
+      <rect x="3" y="1" width="1" height="1" fill="#ffb8b0"/><rect x="12" y="1" width="1" height="1" fill="#ffb8b0"/>
+      <rect x="7" y="2" width="2" height="2" fill="#d27f3c"/><rect x="5" y="2" width="1" height="1" fill="#d27f3c"/><rect x="10" y="2" width="1" height="1" fill="#d27f3c"/>
+      <!-- eyes: open while focusing, closed while sleeping -->
+      <g class="eyes-open"><rect x="4" y="4" width="2" height="2" fill="#4a3030"/><rect x="10" y="4" width="2" height="2" fill="#4a3030"/></g>
+      <g class="eyes-closed"><rect x="4" y="5" width="2" height="1" fill="#4a3030"/><rect x="10" y="5" width="2" height="1" fill="#4a3030"/></g>
+      <!-- muzzle, nose, mouth, cheeks -->
+      <rect x="6" y="7" width="4" height="2" fill="#fbe3c6"/><rect x="7" y="7" width="2" height="1" fill="#ff8f9e"/>
+      <rect x="6" y="8" width="1" height="1" fill="#4a3030" opacity=".8"/><rect x="9" y="8" width="1" height="1" fill="#4a3030" opacity=".8"/>
+      <rect x="2" y="7" width="2" height="1" fill="#ff9aa8" opacity=".7"/><rect x="12" y="7" width="2" height="1" fill="#ff9aa8" opacity=".7"/>
+      <!-- glasses (shown while focusing) -->
+      <g class="glasses">
+        <rect x="4" y="4" width="2" height="2" fill="#9fdcff" opacity=".45"/><rect x="10" y="4" width="2" height="2" fill="#9fdcff" opacity=".45"/>
+        <rect x="3" y="3" width="4" height="1" fill="#4a3030"/><rect x="3" y="6" width="4" height="1" fill="#4a3030"/><rect x="3" y="4" width="1" height="2" fill="#4a3030"/><rect x="6" y="4" width="1" height="2" fill="#4a3030"/>
+        <rect x="9" y="3" width="4" height="1" fill="#4a3030"/><rect x="9" y="6" width="4" height="1" fill="#4a3030"/><rect x="9" y="4" width="1" height="2" fill="#4a3030"/><rect x="12" y="4" width="1" height="2" fill="#4a3030"/>
+        <rect x="7" y="4" width="2" height="1" fill="#4a3030"/><rect x="2" y="4" width="1" height="1" fill="#4a3030"/><rect x="13" y="4" width="1" height="1" fill="#4a3030"/>
+      </g>
+      <!-- paw that puts the glasses on -->
+      <g class="paw"><rect x="12" y="10" width="2" height="1" fill="#f0a35e"/><rect x="12" y="8" width="2" height="2" fill="#f0a35e"/><rect x="12" y="7" width="2" height="1" fill="#fbe3c6"/></g>
+    </svg>
+    <div class="time" id="time" role="timer" aria-live="off">25:00</div>
+    <div class="status" id="status">READY TO FOCUS</div>
+    <div class="bar" id="bar" aria-hidden="true"></div>
+    <div class="controls">
+      <button class="btn primary" id="startBtn" type="button">START</button>
+      <button class="btn" id="resetBtn" type="button">RESET</button>
+    </div>
+  </section>
+
+  <!-- To-do panel: opens next to the timer card -->
+  <aside class="card todo-panel" id="todoPanel" aria-label="To-do list" aria-hidden="true">
+    <div class="todo-head">
+      <h2>What are you gonna purr today ?</h2>
+      <button class="small" id="todoClose" type="button" aria-label="Close to-do list">✕</button>
+    </div>
+    <div class="todo-add">
+      <input type="text" id="todoInput" maxlength="60" placeholder="Add a task..." aria-label="New task">
+      <button class="btn" id="todoAdd" type="button" aria-label="Add task">+</button>
+    </div>
+    <ul class="todo-list" id="todoList"></ul>
+    <p class="todo-empty" id="todoEmpty">Nothing yet. Add something cozy!</p>
+  </aside>
+
+<!-- Spotify player: opens to the right of the timer. Hidden by default; nothing is loaded until "SHOW SPOTIFY" is ticked in Settings -->
+<aside class="card spotify" id="spotify" aria-label="Spotify player" aria-hidden="true">
+  <div class="sp-head">
+    <span class="label">Spotify</span>
+    <span class="sp-btns">
+      <button class="small" id="spMin" type="button" aria-label="Minimize Spotify">−</button>
+      <button class="small" id="spClose" type="button" aria-label="Close Spotify">✕</button>
+    </span>
+  </div>
+  <div class="sp-body">
+    <div class="todo-add sp-add">
+      <input type="text" id="spInput" placeholder="Paste your playlist link" aria-label="Spotify playlist link">
+      <button class="btn" id="spLoad" type="button">GO</button>
+    </div>
+    <p class="sp-note" id="spNote"></p>
+    <iframe id="spFrame" title="Spotify player" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+    <p class="sp-hint">Log in inside the player to hear full songs. In Spotify: Share → Copy link to get a playlist link.</p>
+  </div>
+</aside>
+  </div>
+
+  <section class="card yarn-card" aria-label="Completed sessions">
+    <div class="yarn-head"><span class="label">Completed sessions</span><span class="label" id="yarnCount">0 today</span></div>
+    <div class="yarns" id="yarns"></div>
+  </section>
+
+  <section class="card">
+    <button class="todo-btn" id="todoBtn" type="button" aria-expanded="false" aria-controls="todoPanel">
+      <span>TO-DO LIST</span><span class="count" id="todoCount">0 left</span>
+    </button>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>SETTINGS</summary>
+      <div class="fields">
+        <label class="field"><span class="label">Focus (min)</span><input type="number" id="set-focus" min="1" max="180"></label>
+        <label class="field"><span class="label">Short break</span><input type="number" id="set-short" min="1" max="60"></label>
+        <label class="field"><span class="label">Long break</span><input type="number" id="set-long" min="1" max="120"></label>
+        <label class="field"><span class="label">Long break every</span><input type="number" id="set-every" min="2" max="10"></label>
+        <label class="toggle"><input type="checkbox" id="set-notify"> NOTIFY WHEN A SESSION ENDS</label>
+        <label class="toggle"><input type="checkbox" id="set-sound"> SOUND EFFECTS</label>
+        <label class="toggle"><input type="checkbox" id="set-spotify"> SHOW SPOTIFY</label>
+        <button class="small" id="clearBtn" type="button">Clear today’s stats</button>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+/* ============ 1. STORAGE HELPERS (localStorage, never crashes if blocked) ============ */
+function load(key, fallback) {
+  try { return Object.assign({}, fallback, JSON.parse(localStorage.getItem(key))); }
+  catch (e) { return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+
+/* ============ 2. STATE ============ */
+const defaults = { focus: 25, short: 5, long: 15, every: 4, notify: false, sound: true, spotify: false };
+let settings = load("flowtime-settings", defaults);
+let stats = load("flowtime-stats", { date: "", sessions: 0, seconds: 0, total: 0 });
+let timer = load("flowtime-timer", { mode: "focus", running: false, endTime: 0, remaining: settings.focus * 60, cycle: 0 });
+let theme = load("flowtime-theme", { value: "" }).value;
+let interval = null;
+
+const $ = id => document.getElementById(id);
+const todayKey = () => new Date().toLocaleDateString("en-CA"); // e.g. 2026-11-25
+const total = () => settings[timer.mode] * 60;
+
+function checkNewDay() {
+  if (stats.date !== todayKey()) { stats.date = todayKey(); stats.sessions = 0; stats.seconds = 0; save("flowtime-stats", stats); }
+}
+
+/* ============ 3. COZY PIXEL SOUNDS ============
+   Each sound is a short list of musical notes (in Hz) played one after another. */
+let audioCtx;
+function play(notes, gap = 0.09, wave = "triangle", vol = 0.07) {
+  if (!settings.sound) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    notes.forEach((freq, i) => {
+      const t = audioCtx.currentTime + i * gap;
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = wave; osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + gap + 0.1);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + gap + 0.11);
+    });
+  } catch (e) {}
+}
+const sfx = {
+  click: () => play([784, 988], 0.05),
+  start: () => play([523, 659, 784, 1047], 0.08),
+  pause: () => play([784, 587], 0.09),
+  reset: () => play([440, 349, 262], 0.08),
+  tab:   () => play([659, 880], 0.06),
+  done:  () => play([784, 988, 1175, 1568, 1175, 1568], 0.16),
+  check: () => play([880, 1175, 1568], 0.07, "triangle", 0.1),
+  add:   () => play([659, 988], 0.05)
+};
+
+/* ============ 4. DRAWING THE SCREEN ============ */
+const bar = $("bar");
+for (let i = 0; i < 20; i++) bar.appendChild(document.createElement("i"));
+
+// tiny light-stars that slowly drift to the right while they twinkle
+for (let i = 0; i < 24; i++) {
+  const s = document.createElement("i");
+  const duration = 60 + Math.random() * 60;              // 60 to 120 seconds to cross the screen
+  s.className = "star";
+  s.style.setProperty("--x", (Math.random() * 100).toFixed(1) + "vw");
+  s.style.setProperty("--s", (Math.random() < 0.7 ? 2 : 3) + "px");
+  s.style.top = (Math.random() * 92).toFixed(1) + "%";
+  s.style.animationDuration = duration.toFixed(0) + "s, " + (2 + Math.random() * 3).toFixed(1) + "s";
+  s.style.animationDelay = "-" + (Math.random() * duration).toFixed(1) + "s, -" + (Math.random() * 5).toFixed(1) + "s";
+  $("bg").appendChild(s);
+}
+
+// four pixel yarn balls: grey until a pomodoro session is finished, then they get their colour
+const yarnBox = $("yarns");
+const balls = [];
+let prevSessions = null;
+const yarnSVG = (() => {
+  const rows = [[4,6],[2,10],[1,12],[1,12],[0,14],[0,14],[0,14],[0,14],[0,14],[1,12],[1,12],[2,10],[4,6]];
+  const body = rows.map((r, y) => '<rect x="' + r[0] + '" y="' + y + '" width="' + r[1] + '" height="1"/>').join("");
+  const strands = [];
+  for (let y = 2; y <= 10; y++) strands.push([y + 1, y]);   // three diagonal threads
+  for (let y = 0; y <= 8; y++) strands.push([y + 5, y]);
+  for (let y = 4; y <= 12; y++) strands.push([y - 3, y]);
+  const dark = strands.map(p => '<rect x="' + p[0] + '" y="' + p[1] + '" width="1" height="1"/>').join("");
+  return '<svg viewBox="0 0 14 13" aria-hidden="true"><g fill="currentColor">' + body + '<rect x="10" y="12" width="3" height="1"/><rect x="13" y="10" width="1" height="2"/></g>' +
+         '<g fill="#000" opacity=".14">' + dark + '</g><rect x="2" y="3" width="1" height="2" fill="#fff" opacity=".35"/></svg>';
+})();
+for (let i = 0; i < 4; i++) {
+  const ball = document.createElement("div");
+  ball.className = "yarn"; ball.innerHTML = yarnSVG;
+  yarnBox.appendChild(ball); balls.push(ball);
+}
+function renderYarn() {
+  const n = stats.sessions;
+  const filled = n > 0 && n % 4 === 0 ? 4 : n % 4;   // after the 4th session the set is full
+  balls.forEach((b, i) => b.classList.toggle("on", i < filled));
+  $("yarnCount").textContent = n + " today";
+  if (prevSessions !== null && n > prevSessions && filled > 0) {   // a session was just finished: little hop
+    const b = balls[filled - 1];
+    b.classList.remove("pop"); void b.getBoundingClientRect(); b.classList.add("pop");
+  }
+  prevSessions = n;
+}
+
+function fmt(sec) {
+  return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
+}
+function render() {
+  checkNewDay();
+  const [m, s] = fmt(timer.remaining).split(":");
+  $("time").innerHTML = m + '<span class="colon">:</span>' + s;
+  document.title = fmt(timer.remaining) + " · Pixodoro";
+  document.body.dataset.mode = timer.mode;
+  $("app").classList.toggle("running", timer.running);
+  const wearing = timer.running && timer.mode === "focus";
+  $("cat").classList.toggle("wearing", wearing);
+  if (!wearing) $("cat").classList.remove("putting");
+  $("startBtn").textContent = timer.running ? "PAUSE" : (timer.remaining < total() ? "RESUME" : "START");
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.mode === timer.mode));
+  const filled = Math.floor((1 - timer.remaining / total()) * 20);
+  [...bar.children].forEach((b, i) => b.classList.toggle("on", i < filled));
+  renderYarn();
+}
+function say(text) { $("status").textContent = text; }
+
+/* ============ 5. TIMER LOGIC ============
+   We store the END TIME (a real clock timestamp) instead of counting seconds.
+   Browsers slow down timers in background tabs, but the clock stays correct,
+   so the timer is always accurate when you come back. */
+function tick() {
+  if (!timer.running) return;
+  timer.remaining = Math.max(0, Math.round((timer.endTime - Date.now()) / 1000));
+  if (timer.remaining <= 0) complete();
+  render();
+}
+function start() {
+  if (timer.remaining <= 0) timer.remaining = total();
+  timer.endTime = Date.now() + timer.remaining * 1000;
+  timer.running = true;
+  clearInterval(interval);
+  interval = setInterval(tick, 250);
+  say(timer.mode === "focus" ? "PURRING ALONG... FOCUS!" : "ZZZ... REST TIME");
+  if (timer.mode === "focus") putOnGlasses();
+  sfx.start();
+  save("flowtime-timer", timer); render();
+}
+function pause(quiet) {
+  tick();
+  timer.running = false;
+  clearInterval(interval);
+  say("PAUSED");
+  if (!quiet) sfx.pause();
+  save("flowtime-timer", timer); render();
+}
+function addFocusTime() {
+  if (timer.mode !== "focus") return;
+  const elapsed = total() - timer.remaining;
+  if (elapsed > 0) { stats.seconds += elapsed; save("flowtime-stats", stats); }
+}
+function reset() {
+  if (timer.running) tick();
+  addFocusTime(); // keep the time you already focused
+  timer.running = false;
+  clearInterval(interval);
+  timer.remaining = total();
+  say("FRESH START");
+  sfx.reset();
+  save("flowtime-timer", timer); render();
+}
+function setMode(mode) {
+  if (timer.running) pause(true);
+  addFocusTime();
+  timer.mode = mode; timer.remaining = total();
+  say(mode === "focus" ? "READY TO FOCUS" : "TIME FOR A CATNAP");
+  sfx.tab();
+  save("flowtime-timer", timer); render();
+}
+function complete() {
+  clearInterval(interval);
+  timer.running = false;
+  const finished = timer.mode;
+  if (finished === "focus") {
+    checkNewDay();
+    stats.sessions++; stats.total++; stats.seconds += total();
+    timer.cycle++;
+    save("flowtime-stats", stats);
+    timer.mode = timer.cycle % settings.every === 0 ? "long" : "short";
+  } else {
+    timer.mode = "focus";
+  }
+  timer.remaining = total();
+  say(finished === "focus" ? "WELL DONE! TIME FOR A NAP" : "BREAK OVER. READY?");
+  notify(finished);
+  sfx.done();
+  save("flowtime-timer", timer); render();
+}
+
+/* ============ 6. NOTIFICATION ============ */
+function notify(finished) {
+  if (!settings.notify || !("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    new Notification("Pixodoro", { body: finished === "focus" ? "Focus session complete. Time for a cozy break!" : "Break is over. Time to focus." });
+  } catch (e) {}
+}
+
+/* ============ 7. SETTINGS FORM ============ */
+["focus", "short", "long", "every"].forEach(key => {
+  const input = $("set-" + key);
+  input.value = settings[key];
+  input.addEventListener("change", () => {
+    const v = Math.max(+input.min, Math.min(+input.max, parseInt(input.value) || defaults[key]));
+    input.value = v; settings[key] = v;
+    save("flowtime-settings", settings);
+    if (!timer.running && key === timer.mode) { timer.remaining = total(); save("flowtime-timer", timer); }
+    sfx.click(); render();
+  });
+});
+$("set-sound").checked = settings.sound;
+$("set-sound").addEventListener("change", e => { settings.sound = e.target.checked; save("flowtime-settings", settings); sfx.click(); });
+$("set-notify").checked = settings.notify;
+$("set-notify").addEventListener("change", async e => {
+  settings.notify = e.target.checked;
+  sfx.click();
+  if (settings.notify) {
+    if (!("Notification" in window)) { say("NOTIFICATIONS NOT SUPPORTED"); settings.notify = e.target.checked = false; }
+    else if (Notification.permission !== "granted") {
+      try { const p = await Notification.requestPermission(); if (p !== "granted") { settings.notify = e.target.checked = false; say("NOTIFICATIONS BLOCKED"); } }
+      catch (err) { settings.notify = e.target.checked = false; }
+    }
+  }
+  save("flowtime-settings", settings);
+});
+
+/* ============ 8. BUTTONS AND EVENTS ============ */
+$("startBtn").addEventListener("click", () => timer.running ? pause() : start());
+$("resetBtn").addEventListener("click", reset);
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setMode(t.dataset.mode)));
+$("clearBtn").addEventListener("click", () => { stats.sessions = 0; stats.seconds = 0; save("flowtime-stats", stats); sfx.click(); render(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); }); // re-sync when you return
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && !/INPUT|BUTTON|SUMMARY/.test(e.target.tagName)) { e.preventDefault(); $("startBtn").click(); }
+});
+$("themeBtn").addEventListener("click", () => {
+  const dark = document.documentElement.dataset.theme === "dark" ||
+    (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  theme = dark ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+  save("flowtime-theme", { value: theme });
+  sfx.click();
+});
+if (theme) document.documentElement.dataset.theme = theme;
+
+/* ============ 9. CAT GLASSES ANIMATION ============ */
+let glassTimer;
+function putOnGlasses() {
+  const cat = $("cat");
+  cat.classList.remove("putting");
+  void cat.getBoundingClientRect(); // lets the animation restart
+  cat.classList.add("putting");
+  clearTimeout(glassTimer);
+  glassTimer = setTimeout(() => cat.classList.remove("putting"), 1500);
+}
+
+/* ============ 10. TO-DO LIST ============ */
+let todos = [];
+try { const saved = JSON.parse(localStorage.getItem("pixodoro-todos")); if (Array.isArray(saved)) todos = saved; } catch (e) {}
+
+// the pixel tick mark: 7 tiny squares
+const tickPixels = [[0,2],[1,3],[2,4],[3,3],[4,2],[5,1],[6,0]]
+  .map(p => '<rect x="' + p[0] + '" y="' + p[1] + '" width="1" height="1" fill="currentColor"/>').join("");
+
+function todoUI() {
+  $("todoCount").textContent = todos.length + " left";
+  $("todoEmpty").hidden = $("todoList").children.length > 0;
+}
+function makeTodo(t) {
+  const li = document.createElement("li");
+  const btn = document.createElement("button");
+  btn.className = "check"; btn.type = "button"; btn.setAttribute("aria-label", "Mark as done");
+  btn.innerHTML = '<svg viewBox="0 0 7 5" aria-hidden="true">' + tickPixels + '</svg>';
+  const text = document.createElement("span");
+  text.className = "todo-text"; text.textContent = t.text;
+  li.append(btn, text);
+  btn.addEventListener("click", () => finishTodo(li, t.id));
+  return li;
+}
+function finishTodo(li, id) {
+  if (li.classList.contains("done")) return;
+  li.classList.add("done");            // tick appears + text is crossed out
+  sfx.check();
+  todos = todos.filter(t => t.id !== id);
+  save("pixodoro-todos", todos);
+  todoUI();
+  setTimeout(() => li.classList.add("removing"), 600);   // then it slides away smoothly
+  setTimeout(() => { li.remove(); todoUI(); }, 1100);
+}
+function addTodo() {
+  const input = $("todoInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const t = { id: Date.now() + "-" + Math.random().toString(36).slice(2, 6), text: text };
+  todos.push(t);
+  save("pixodoro-todos", todos);
+  $("todoList").appendChild(makeTodo(t));
+  input.value = "";
+  sfx.add(); todoUI();
+}
+function toggleTodo(open) {
+  const panel = $("todoPanel");
+  const isOpen = open === undefined ? !panel.classList.contains("open") : open;
+  panel.classList.toggle("open", isOpen);
+  panel.setAttribute("aria-hidden", String(!isOpen));
+  $("todoBtn").setAttribute("aria-expanded", String(isOpen));
+  (isOpen ? sfx.tab : sfx.click)();
+  if (isOpen && matchMedia("(hover: hover)").matches) setTimeout(() => $("todoInput").focus({ preventScroll: true }), 400);
+}
+todos.forEach(t => $("todoList").appendChild(makeTodo(t)));
+todoUI();
+$("todoBtn").addEventListener("click", () => toggleTodo());
+$("todoClose").addEventListener("click", () => toggleTodo(false));
+$("todoAdd").addEventListener("click", addTodo);
+$("todoInput").addEventListener("keydown", e => { if (e.key === "Enter") addTodo(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("todoPanel").classList.contains("open")) toggleTodo(false); });
+
+/* ============ SPOTIFY (optional, off by default) ============ */
+const DEFAULT_SPOTIFY = "https://open.spotify.com/playlist/37i9dQZF1DWWQRwui0ExPn"; // lofi beats
+let spotifyState = load("pixodoro-spotify", { link: DEFAULT_SPOTIFY, min: false });
+
+// turns a normal Spotify link (or spotify:playlist:ID) into an embed address
+function spotifyEmbedUrl(link) {
+  const m = String(link).match(/(?:open\.spotify\.com\/(?:intl-[a-z-]+\/)?|spotify:)(playlist|album|track|artist|show|episode)[\/:]([A-Za-z0-9]{10,})/);
+  return m ? "https://open.spotify.com/embed/" + m[1] + "/" + m[2] + "?utm_source=generator" : null;
+}
+function applySpotify() {
+  const on = settings.spotify;
+  $("spotify").classList.toggle("open", on);
+  $("spotify").classList.toggle("min", spotifyState.min);
+  $("spotify").setAttribute("aria-hidden", String(!on));
+  document.body.classList.toggle("spotify-open", on);
+  document.body.classList.toggle("spotify-min", on && spotifyState.min);
+  $("spMin").textContent = spotifyState.min ? "+" : "\u2212";
+  const frame = $("spFrame");
+  if (on) {                                  // the player is only loaded when it is switched on
+    const url = spotifyEmbedUrl(spotifyState.link);
+    if (url && frame.getAttribute("src") !== url) frame.src = url;
+  } else if (frame.getAttribute("src")) {    // switching it off also stops the music
+    frame.src = "about:blank";
+  }
+}
+function loadSpotify() {
+  const link = $("spInput").value.trim();
+  const url = spotifyEmbedUrl(link);
+  if (!url) { $("spNote").textContent = "That doesn\u2019t look like a Spotify link. Try Share \u2192 Copy link in Spotify."; return; }
+  $("spNote").textContent = "";
+  spotifyState.link = link;
+  save("pixodoro-spotify", spotifyState);
+  $("spFrame").src = url;
+  sfx.click();
+}
+if (spotifyState.link !== DEFAULT_SPOTIFY) $("spInput").value = spotifyState.link;
+$("set-spotify").checked = settings.spotify;
+$("set-spotify").addEventListener("change", e => { settings.spotify = e.target.checked; save("flowtime-settings", settings); applySpotify(); sfx.click(); });
+$("spClose").addEventListener("click", () => { settings.spotify = false; $("set-spotify").checked = false; save("flowtime-settings", settings); applySpotify(); sfx.click(); });
+$("spMin").addEventListener("click", () => { spotifyState.min = !spotifyState.min; save("pixodoro-spotify", spotifyState); applySpotify(); sfx.click(); });
+$("spLoad").addEventListener("click", loadSpotify);
+$("spInput").addEventListener("keydown", e => { if (e.key === "Enter") loadSpotify(); });
+applySpotify();
+
+/* ============ STOP MOTION (freezes the moving stars) ============ */
+let motion = load("pixodoro-motion", { off: false });
+function applyMotion() {
+  document.body.classList.toggle("no-motion", motion.off);
+  $("motionBtn").textContent = motion.off ? "START MOTION" : "STOP MOTION";
+}
+$("motionBtn").addEventListener("click", () => { motion.off = !motion.off; save("pixodoro-motion", motion); applyMotion(); sfx.click(); });
+applyMotion();
+
+/* ============ 11. START UP ============ */
+if (timer.running) {              // the page was closed or reloaded mid-session
+  timer.remaining = Math.max(0, Math.round((timer.endTime - Date.now()) / 1000));
+  if (timer.remaining <= 0) complete();
+  else { interval = setInterval(tick, 250); say("PURRING ALONG... FOCUS!"); }
+} else if (timer.remaining > total() || timer.remaining <= 0) {
+  timer.remaining = total();
+}
+render();
+</script>
+</body>
+</html>
